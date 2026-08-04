@@ -1,0 +1,429 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Lucid — Data Analytics Copilot</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
+<style>
+:root{
+  --ink:#0D1117;
+  --ink-2:#161B24;
+  --paper:#EEF0F3;
+  --panel:#FFFFFF;
+  --slate:#5B6472;
+  --slate-2:#8891A0;
+  --line:#DDE1E7;
+  --teal:#0F9B8E;
+  --teal-soft:#E4F5F3;
+  --violet:#6D5AE6;
+  --violet-soft:#EEEBFD;
+  --amber:#C9820A;
+  --amber-soft:#FBF0DC;
+  --red:#C93838;
+  --red-soft:#FAE7E7;
+  --radius:10px;
+}
+*{box-sizing:border-box;}
+html,body{margin:0;padding:0;height:100%;}
+body{
+  font-family:'Inter',sans-serif;
+  background:var(--paper);
+  color:var(--ink);
+  display:flex;
+  min-height:100vh;
+  -webkit-font-smoothing:antialiased;
+}
+h1,h2,h3,.display{font-family:'Space Grotesk',sans-serif;}
+.mono{font-family:'JetBrains Mono',monospace;}
+button{font-family:inherit;cursor:pointer;}
+::selection{background:var(--teal);color:#fff;}
+
+/* ---------- Sidebar ---------- */
+.sidebar{
+  width:232px;
+  flex-shrink:0;
+  background:var(--ink);
+  color:#fff;
+  display:flex;
+  flex-direction:column;
+  padding:22px 16px;
+  position:sticky;
+  top:0;
+  height:100vh;
+}
+.brand{
+  display:flex;
+  align-items:center;
+  gap:10px;
+  padding:4px 8px 26px 8px;
+}
+.brand-mark{
+  width:30px;height:30px;border-radius:8px;
+  background:linear-gradient(135deg,var(--teal),var(--violet));
+  display:flex;align-items:center;justify-content:center;
+  font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:15px;
+}
+.brand-name{font-family:'Space Grotesk',sans-serif;font-weight:600;font-size:16.5px;letter-spacing:.2px;}
+.brand-sub{font-size:10.5px;color:#8891A0;letter-spacing:.4px;text-transform:uppercase;margin-top:1px;}
+
+.nav{display:flex;flex-direction:column;gap:2px;margin-top:6px;}
+.nav-item{
+  display:flex;align-items:center;gap:10px;
+  padding:10px 12px;border-radius:8px;
+  color:#B7BEC9;background:transparent;border:none;
+  font-size:13.5px;font-weight:500;text-align:left;width:100%;
+  transition:background .15s, color .15s;
+}
+.nav-item:hover{background:#1C2230;color:#fff;}
+.nav-item.active{background:#1E2533;color:#fff;}
+.nav-item .dot{width:6px;height:6px;border-radius:50%;background:#3A4353;flex-shrink:0;}
+.nav-item.active .dot{background:var(--teal);}
+.nav-num{font-family:'JetBrains Mono',monospace;font-size:10.5px;color:#5B6472;}
+
+.sidebar-footer{margin-top:auto;padding:12px 8px 0 8px;border-top:1px solid #1E2533;}
+.status-line{display:flex;align-items:center;gap:7px;font-size:11.5px;color:#8891A0;margin-top:12px;}
+.status-dot{width:6px;height:6px;border-radius:50%;background:var(--slate-2);}
+.status-dot.on{background:var(--teal);box-shadow:0 0 0 3px rgba(15,155,142,.25);}
+
+/* ---------- Main ---------- */
+.main{flex:1;min-width:0;display:flex;flex-direction:column;}
+.topbar{
+  padding:20px 34px;border-bottom:1px solid var(--line);
+  display:flex;align-items:center;justify-content:space-between;
+  background:var(--panel);position:sticky;top:0;z-index:5;
+}
+.topbar h1{font-size:19px;margin:0;font-weight:600;}
+.topbar .sub{font-size:12.5px;color:var(--slate);margin-top:2px;}
+.dataset-pill{
+  display:flex;align-items:center;gap:8px;
+  background:var(--paper);border:1px solid var(--line);
+  padding:7px 13px;border-radius:20px;font-size:12px;color:var(--slate);
+}
+.dataset-pill b{color:var(--ink);font-weight:600;}
+
+.content{padding:30px 34px 60px 34px;flex:1;}
+.panel{display:none;}
+.panel.active{display:block;animation:fade .25s ease;}
+@keyframes fade{from{opacity:0;transform:translateY(4px);}to{opacity:1;transform:none;}}
+
+/* ---------- Empty state ---------- */
+.empty-state{
+  border:1.5px dashed var(--line);border-radius:14px;
+  padding:60px 30px;text-align:center;color:var(--slate);
+  background:var(--panel);
+}
+.empty-state h3{color:var(--ink);margin-bottom:6px;font-size:16px;}
+.empty-state p{font-size:13.5px;max-width:420px;margin:0 auto 18px auto;line-height:1.6;}
+
+/* ---------- Upload panel ---------- */
+.dropzone{
+  border:1.5px dashed #B9C0CC;border-radius:14px;
+  padding:56px 30px;text-align:center;background:var(--panel);
+  transition:border-color .15s, background .15s;cursor:pointer;
+}
+.dropzone.drag{border-color:var(--teal);background:var(--teal-soft);}
+.dropzone .icon{
+  width:46px;height:46px;border-radius:10px;margin:0 auto 16px auto;
+  background:var(--ink);display:flex;align-items:center;justify-content:center;
+}
+.dropzone h3{margin:0 0 6px 0;font-size:16.5px;}
+.dropzone p{color:var(--slate);font-size:13px;margin:0 0 18px 0;}
+.btn{
+  border-radius:8px;padding:10px 18px;font-size:13px;font-weight:600;border:none;
+  display:inline-flex;align-items:center;gap:7px;
+}
+.btn-primary{background:var(--ink);color:#fff;}
+.btn-primary:hover{background:#1E2533;}
+.btn-ghost{background:var(--panel);border:1px solid var(--line);color:var(--ink);}
+.btn-ghost:hover{border-color:#B9C0CC;}
+.upload-row{display:flex;gap:10px;justify-content:center;flex-wrap:wrap;}
+#fileInput{display:none;}
+.upload-meta{margin-top:26px;display:grid;grid-template-columns:repeat(3,1fr);gap:14px;}
+.meta-card{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:16px 18px;}
+.meta-card .label{font-size:11px;text-transform:uppercase;letter-spacing:.5px;color:var(--slate-2);font-weight:600;}
+.meta-card .value{font-family:'JetBrains Mono',monospace;font-size:20px;margin-top:6px;}
+.schema-table{width:100%;border-collapse:collapse;margin-top:22px;background:var(--panel);border:1px solid var(--line);border-radius:12px;overflow:hidden;}
+.schema-table th,.schema-table td{padding:10px 16px;text-align:left;font-size:12.5px;border-bottom:1px solid var(--line);}
+.schema-table th{background:var(--paper);color:var(--slate);font-weight:600;text-transform:uppercase;font-size:10.5px;letter-spacing:.5px;}
+.schema-table tr:last-child td{border-bottom:none;}
+.type-badge{padding:2px 8px;border-radius:5px;font-size:10.5px;font-weight:600;font-family:'JetBrains Mono',monospace;}
+.type-numeric{background:var(--teal-soft);color:var(--teal);}
+.type-categorical{background:var(--violet-soft);color:var(--violet);}
+.type-date{background:var(--amber-soft);color:var(--amber);}
+
+/* ---------- Dashboard ---------- */
+.kpi-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:22px;}
+.kpi-card{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:18px 20px;}
+.kpi-card .label{font-size:11px;text-transform:uppercase;letter-spacing:.5px;color:var(--slate-2);font-weight:600;}
+.kpi-card .value{font-family:'JetBrains Mono',monospace;font-size:24px;margin-top:8px;font-weight:600;}
+.kpi-card .delta{font-size:11.5px;margin-top:6px;color:var(--slate);}
+.chart-grid{display:grid;grid-template-columns:1.3fr 1fr;gap:16px;}
+.chart-grid .full{grid-column:1 / -1;}
+.chart-card{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:18px 20px 10px 20px;}
+.chart-card h4{margin:0 0 2px 0;font-size:13.5px;font-weight:600;}
+.chart-card .cap{font-size:11.5px;color:var(--slate);margin-bottom:10px;}
+.chart-card canvas{max-height:250px;}
+
+/* ---------- Insight cards ---------- */
+.section-head{display:flex;align-items:baseline;justify-content:space-between;margin-bottom:16px;}
+.section-head h2{font-size:16.5px;margin:0;}
+.section-head p{font-size:12.5px;color:var(--slate);margin:2px 0 0 0;}
+.insight-card{
+  background:var(--panel);border:1px solid var(--line);border-radius:12px;
+  padding:16px 18px;margin-bottom:12px;display:flex;gap:14px;align-items:flex-start;
+}
+.insight-icon{
+  width:30px;height:30px;border-radius:8px;flex-shrink:0;
+  display:flex;align-items:center;justify-content:center;font-size:14px;
+}
+.insight-icon.trend{background:var(--teal-soft);}
+.insight-icon.outlier{background:var(--red-soft);}
+.insight-icon.corr{background:var(--violet-soft);}
+.insight-icon.summary{background:var(--amber-soft);}
+.insight-body p{margin:0;font-size:13.5px;line-height:1.55;}
+.stamp{
+  display:inline-flex;align-items:center;gap:5px;margin-top:8px;
+  font-family:'JetBrains Mono',monospace;font-size:10.5px;color:var(--slate-2);
+  background:var(--paper);border:1px solid var(--line);padding:3px 8px;border-radius:5px;
+}
+.stamp::before{content:'';width:5px;height:5px;border-radius:50%;background:var(--teal);}
+
+/* ---------- Forecast ---------- */
+.forecast-controls{display:flex;gap:10px;align-items:center;margin-bottom:18px;flex-wrap:wrap;}
+select{
+  padding:9px 12px;border-radius:8px;border:1px solid var(--line);background:var(--panel);
+  font-size:13px;color:var(--ink);font-family:inherit;
+}
+.caveat{
+  margin-top:14px;background:var(--amber-soft);border:1px solid #E9D19C;border-radius:10px;
+  padding:12px 16px;font-size:12.5px;color:#7A5A0C;line-height:1.55;
+}
+
+/* ---------- Chat ---------- */
+.chat-wrap{display:flex;flex-direction:column;height:calc(100vh - 190px);background:var(--panel);border:1px solid var(--line);border-radius:14px;overflow:hidden;}
+.chat-head{padding:16px 20px;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;align-items:center;}
+.chat-head h3{margin:0;font-size:14.5px;}
+.chat-head .cap{font-size:11.5px;color:var(--slate);margin-top:2px;}
+.chat-log{flex:1;overflow-y:auto;padding:22px 24px;display:flex;flex-direction:column;gap:16px;}
+.msg{max-width:78%;padding:12px 15px;border-radius:12px;font-size:13.5px;line-height:1.6;}
+.msg.user{align-self:flex-end;background:var(--ink);color:#fff;border-bottom-right-radius:3px;}
+.msg.agent{align-self:flex-start;background:var(--paper);border:1px solid var(--line);border-bottom-left-radius:3px;}
+.msg.agent .stamp{margin-top:10px;}
+.chat-input-row{padding:16px 20px;border-top:1px solid var(--line);display:flex;gap:10px;}
+.chat-input-row input{
+  flex:1;padding:11px 14px;border-radius:9px;border:1px solid var(--line);
+  font-size:13.5px;font-family:inherit;background:var(--paper);
+}
+.chat-input-row input:focus{outline:2px solid var(--teal);outline-offset:1px;}
+.chat-suggestions{display:flex;gap:8px;padding:0 20px 14px 20px;flex-wrap:wrap;}
+.chip{background:var(--paper);border:1px solid var(--line);border-radius:20px;padding:6px 13px;font-size:11.5px;color:var(--slate);}
+.chip:hover{border-color:var(--teal);color:var(--teal);}
+.typing{display:flex;gap:4px;padding:4px 0;}
+.typing span{width:5px;height:5px;border-radius:50%;background:var(--slate-2);animation:blink 1.2s infinite;}
+.typing span:nth-child(2){animation-delay:.2s;}
+.typing span:nth-child(3){animation-delay:.4s;}
+@keyframes blink{0%,80%,100%{opacity:.25;}40%{opacity:1;}}
+
+/* ---------- Auth screen ---------- */
+.auth-overlay{
+  position:fixed;inset:0;background:var(--ink);color:#fff;
+  display:flex;align-items:center;justify-content:center;z-index:100;
+}
+.auth-card{width:360px;background:var(--ink-2);border:1px solid #232B3A;border-radius:14px;padding:30px 28px;}
+.auth-card h2{margin:0 0 4px 0;font-size:19px;}
+.auth-card p.sub{color:#8891A0;font-size:12.5px;margin:0 0 20px 0;}
+.auth-field{margin-bottom:14px;}
+.auth-field label{display:block;font-size:11.5px;color:#8891A0;margin-bottom:6px;}
+.auth-field input{
+  width:100%;padding:10px 12px;border-radius:8px;border:1px solid #2A3242;
+  background:#0D1117;color:#fff;font-size:13.5px;font-family:inherit;
+}
+.auth-field input:focus{outline:2px solid var(--teal);outline-offset:1px;}
+.auth-error{color:#F0918F;font-size:12.5px;margin:-4px 0 14px 0;min-height:14px;}
+.auth-submit{width:100%;background:var(--teal);color:#062420;border:none;border-radius:8px;padding:11px;font-weight:700;font-size:13.5px;}
+.auth-switch{margin-top:16px;font-size:12.5px;color:#8891A0;text-align:center;}
+.auth-switch button{background:none;border:none;color:var(--teal);font-size:12.5px;font-weight:600;padding:0;}
+.logout-btn{background:none;border:1px solid var(--line);border-radius:20px;padding:7px 13px;font-size:12px;color:var(--slate);margin-left:8px;}
+.pill-row{display:flex;align-items:center;}
+
+@media (max-width:900px){
+  .sidebar{width:76px;}
+  .brand-name,.brand-sub,.nav-item span.label,.status-line{display:none;}
+  .kpi-grid{grid-template-columns:repeat(2,1fr);}
+  .chart-grid{grid-template-columns:1fr;}
+}
+</style>
+</head>
+<body>
+
+<div class="auth-overlay" id="authOverlay">
+  <div class="auth-card">
+    <h2 id="authTitle">Welcome to Lucid</h2>
+    <p class="sub" id="authSub">Sign in to upload data and pick up where you left off.</p>
+    <div class="auth-field"><label>Email</label><input type="email" id="authEmail" autocomplete="username" /></div>
+    <div class="auth-field"><label>Password</label><input type="password" id="authPassword" autocomplete="current-password" /></div>
+    <div class="auth-error" id="authError"></div>
+    <button class="auth-submit" id="authSubmitBtn">Sign in</button>
+    <div class="auth-switch">
+      <span id="authSwitchText">New here?</span> <button id="authSwitchBtn">Create an account</button>
+    </div>
+  </div>
+</div>
+
+<div class="sidebar">
+  <div class="brand">
+    <div class="brand-mark">L</div>
+    <div>
+      <div class="brand-name">Lucid</div>
+      <div class="brand-sub">Analytics Copilot</div>
+    </div>
+  </div>
+  <div class="nav">
+    <button class="nav-item active" data-panel="upload"><span class="dot"></span><span class="label">Upload Data</span></button>
+    <button class="nav-item" data-panel="dashboard"><span class="dot"></span><span class="label">Dashboard</span></button>
+    <button class="nav-item" data-panel="insights"><span class="dot"></span><span class="label">Insights</span></button>
+    <button class="nav-item" data-panel="forecast"><span class="dot"></span><span class="label">Forecast</span></button>
+    <button class="nav-item" data-panel="chat"><span class="dot"></span><span class="label">Ask the Agent</span></button>
+  </div>
+  <div class="sidebar-footer">
+    <div class="status-line"><span class="status-dot" id="statusDot"></span><span id="statusText">No dataset loaded</span></div>
+    <div class="status-line" style="margin-top:6px;">Grounded answers only — no invented figures</div>
+  </div>
+</div>
+
+<div class="main">
+  <div class="topbar">
+    <div>
+      <h1 id="topTitle">Upload your data</h1>
+      <div class="sub" id="topSub">CSV or TSV — Lucid profiles it, builds a dashboard, and grounds the agent in the real numbers.</div>
+    </div>
+    <div class="pill-row">
+      <select id="datasetPicker" style="display:none;"></select>
+      <div class="dataset-pill"><span id="pillText">No file yet</span></div>
+      <button class="logout-btn" id="logoutBtn">Sign out</button>
+    </div>
+  </div>
+
+  <div class="content">
+
+    <!-- UPLOAD -->
+    <div class="panel active" id="panel-upload">
+      <div class="dropzone" id="dropzone">
+        <div class="icon">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none"><path d="M12 4v11m0-11l-4 4m4-4l4 4M5 17v2a2 2 0 002 2h10a2 2 0 002-2v-2" stroke="white" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </div>
+        <h3>Drop a CSV or TSV file here</h3>
+        <p>Or click to browse. Everything is processed in your browser first, then summarized statistics — never your raw file — are used to ground the agent.</p>
+        <div class="upload-row">
+          <button class="btn btn-primary" id="browseBtn">Choose file</button>
+          <button class="btn btn-ghost" id="sampleBtn">Load sample dataset</button>
+        </div>
+        <input type="file" id="fileInput" accept=".csv,.tsv,text/csv" />
+      </div>
+
+      <div id="uploadSummary" style="display:none;">
+        <div class="upload-meta">
+          <div class="meta-card"><div class="label">Rows</div><div class="value" id="metaRows">—</div></div>
+          <div class="meta-card"><div class="label">Columns</div><div class="value" id="metaCols">—</div></div>
+          <div class="meta-card"><div class="label">Missing values</div><div class="value" id="metaMissing">—</div></div>
+        </div>
+        <table class="schema-table">
+          <thead><tr><th>Column</th><th>Detected type</th><th>Summary</th></tr></thead>
+          <tbody id="schemaBody"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- DASHBOARD -->
+    <div class="panel" id="panel-dashboard">
+      <div id="dashEmpty" class="empty-state">
+        <h3>No dashboard yet</h3>
+        <p>Upload a dataset or load the sample data and Lucid will automatically build KPI cards and charts from it.</p>
+        <button class="btn btn-primary" onclick="goPanel('upload')">Go to Upload</button>
+      </div>
+      <div id="dashContent" style="display:none;">
+        <div class="kpi-grid" id="kpiGrid"></div>
+        <div class="chart-grid" id="chartGrid"></div>
+      </div>
+    </div>
+
+    <!-- INSIGHTS -->
+    <div class="panel" id="panel-insights">
+      <div id="insightsEmpty" class="empty-state">
+        <h3>No insights yet</h3>
+        <p>Once data is loaded, Lucid computes trends, outliers, correlations and distributions — every insight here is a direct calculation, not a guess.</p>
+        <button class="btn btn-primary" onclick="goPanel('upload')">Go to Upload</button>
+      </div>
+      <div id="insightsContent" style="display:none;">
+        <div class="section-head">
+          <div><h2>What the numbers show</h2><p>Every card below is computed directly from your uploaded rows.</p></div>
+        </div>
+        <div id="insightsList"></div>
+      </div>
+    </div>
+
+    <!-- FORECAST -->
+    <div class="panel" id="panel-forecast">
+      <div id="forecastEmpty" class="empty-state">
+        <h3>No forecast yet</h3>
+        <p>Lucid needs a date column and a numeric column to project a trend. Upload data with a time dimension to unlock this.</p>
+        <button class="btn btn-primary" onclick="goPanel('upload')">Go to Upload</button>
+      </div>
+      <div id="forecastContent" style="display:none;">
+        <div class="section-head">
+          <div><h2>Where this trend is heading</h2><p>A simple linear projection of your historical data, in plain language.</p></div>
+        </div>
+        <div class="forecast-controls">
+          <span style="font-size:12.5px;color:var(--slate);">Metric</span>
+          <select id="forecastMetric"></select>
+          <span style="font-size:12.5px;color:var(--slate);">Periods ahead</span>
+          <select id="forecastHorizon">
+            <option value="3">3</option>
+            <option value="6" selected>6</option>
+            <option value="12">12</option>
+          </select>
+          <button class="btn btn-primary" id="runForecastBtn">Run forecast</button>
+        </div>
+        <div class="chart-card full">
+          <h4>Historical vs. projected</h4>
+          <div class="cap">Solid line = actual data. Dashed line = projection.</div>
+          <canvas id="forecastChart" height="90"></canvas>
+        </div>
+        <div class="caveat" id="forecastCaveat"></div>
+      </div>
+    </div>
+
+    <!-- CHAT -->
+    <div class="panel" id="panel-chat">
+      <div id="chatEmpty" class="empty-state">
+        <h3>Agent needs data first</h3>
+        <p>Upload a dataset so the agent has real numbers to reason over. It will only answer from what's actually in your data.</p>
+        <button class="btn btn-primary" onclick="goPanel('upload')">Go to Upload</button>
+      </div>
+      <div id="chatContent" style="display:none;">
+        <div class="chat-wrap">
+          <div class="chat-head">
+            <div>
+              <h3>Ask the agent</h3>
+              <div class="cap">Answers are grounded in your dataset's computed statistics — it will say so when it can't answer.</div>
+            </div>
+          </div>
+          <div class="chat-log" id="chatLog"></div>
+          <div class="chat-suggestions" id="chatSuggestions"></div>
+          <div class="chat-input-row">
+            <input type="text" id="chatInput" placeholder="Ask about a trend, an outlier, or what you should do next…" />
+            <button class="btn btn-primary" id="chatSendBtn">Send</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<script src="app.js"></script>
+</body>
+</html>

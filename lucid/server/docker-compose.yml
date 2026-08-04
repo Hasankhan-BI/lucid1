@@ -1,0 +1,26 @@
+# Run with:  docker compose up -d --build
+# Stop with: docker compose down          (the volume, and your data, survive this)
+# Wipe data: docker compose down -v       (only do this on purpose)
+
+services:
+  lucid:
+    build: .
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    env_file:
+      - .env
+    environment:
+      # These two are fixed to match the volume mount below. Everything else
+      # (JWT_SECRET, ANTHROPIC_API_KEY, PORT) comes from .env.
+      - DATABASE_PATH=/data/dev.db
+      - UPLOADS_DIR=/data/uploads
+    volumes:
+      # Named volume, managed by Docker, persists across container restarts,
+      # rebuilds, and `docker compose up`/`down` cycles. It's stored on the
+      # host at /var/lib/docker/volumes/ — you don't need to manage the path
+      # yourself, just don't run `docker compose down -v`.
+      - lucid_data:/data
+
+volumes:
+  lucid_data:
