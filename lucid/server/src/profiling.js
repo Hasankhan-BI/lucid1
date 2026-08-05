@@ -183,7 +183,11 @@ function buildInsights(rows, columns, numericCols, categoricalCols, dateCols, co
 
   categoricalCols.forEach(col => {
     const s = columns.find(c => c.name === col).stats;
-    if (s.top.length) {
+    // Skip identifier-like columns (e.g. an ID or Name field that's ~unique
+    // per row) — "most common value, 0.1% of rows" isn't a useful insight,
+    // it's just naming whichever row happened to be parsed first.
+    const isIdentifierLike = rows.length > 0 && (s.distinct / rows.length) > 0.5;
+    if (s.top.length && !isIdentifierLike) {
       const pct = (s.top[0][1] / rows.length * 100).toFixed(1);
       list.push({
         icon: 'summary',
