@@ -4,7 +4,13 @@ const storage = require('./storage');
 const { requireAuth } = require('./auth');
 
 const router = express.Router();
-const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY;
+const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
+// "gemini-flash-latest" is a Google-maintained alias that always points to
+// their current recommended GA Flash model, so this doesn't need to be
+// bumped by hand as new model versions ship. Override with GEMINI_MODEL if
+// you want to pin a specific version instead.
+const GEMINI_MODEL = process.env.GEMINI_MODEL || 'gemini-flash-latest';
+const GEMINI_URL = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`;
 
 function buildSystemPrompt(context) {
   return `You are Lucid, a careful data analyst assistant embedded in a dashboard app.
@@ -45,7 +51,7 @@ router.get('/:datasetId/chat', requireAuth, (req, res) => {
 
 router.post('/:datasetId/chat', requireAuth, async (req, res) => {
   try {
-    if (!ANTHROPIC_API_KEY) return res.status(500).json({ error: 'Server is not configured with an Anthropic API key.' });
+    if (!GEMINI_API_KEY) return res.status(500).json({ error: 'Server is not configured with a Gemini API key.' });
     if (rateLimited(req.user.id)) return res.status(429).json({ error: 'Too many messages — please wait a bit before asking again.' });
 
     const { message } = req.body || {};
@@ -68,30 +74,33 @@ router.post('/:datasetId/chat', requireAuth, async (req, res) => {
     };
 
     const history = db.listChatMessages(dataset.id);
+    // Gemini uses "model" instead of "assistant" for the AI's own turns, and
+    // has no separate "system" role — the system prompt goes in its own
+    // top-level systemInstruction field instead of the messages list.
+    const contents = [
+      ...history.map(m => ({ role: m.role === 'assistant' ? 'model' : 'user', parts: [{ text: m.content }] })),
+      { role: 'user', parts: [{ text: message }] }
+    ];
 
-    const anthropicRes = await fetch('https://api.anthropic.com/v1/messages', {
+    const geminiRes = await fetch(`${GEMINI_URL}?key=${GEMINI_API_KEY}`, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-api-key': ANTHROPIC_API_KEY,
-        'anthropic-version': '2023-06-01'
-      },
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        model: 'claude-sonnet-4-6',
-        max_tokens: 1000,
-        system: buildSystemPrompt(context),
-        messages: [...history.map(m => ({ role: m.role, content: m.content })), { role: 'user', content: message }]
+        systemInstruction: { parts: [{ text: buildSystemPrompt(context) }] },
+        contents,
+        generationConfig: { maxOutputTokens: 1000 }
       })
     });
 
-    if (!anthropicRes.ok) {
-      const errBody = await anthropicRes.text();
-      console.error('Anthropic API error:', anthropicRes.status, errBody);
+    if (!geminiRes.ok) {
+      const errBody = await geminiRes.text();
+      console.error('Gemini API error:', geminiRes.status, errBody);
       return res.status(502).json({ error: 'The analysis engine is unavailable right now. Please try again shortly.' });
     }
 
-    const data = await anthropicRes.json();
-    const answer = (data.content || []).filter(b => b.type === 'text').map(b => b.text).join('\n').trim()
+    const data = await geminiRes.json();
+    const candidate = (data.candidates || [])[0];
+    const answer = (candidate?.content?.parts || []).map(p => p.text || '').join('').trim()
       || "I couldn't generate a response — please try rephrasing your question.";
 
     db.addChatMessages(dataset.id, [
