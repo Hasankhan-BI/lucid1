@@ -131,6 +131,7 @@ function applyDatasetPayload(data) {
   state.correlations = data.correlations;
   state.insights = data.insights;
   state.forecast = data.forecast || null;
+  state.joinInfo = data.joinInfo || null;
   state.rows = (data.rows || []).map(r => {
     const copy = { ...r };
     state.dateCols.forEach(dc => { if (copy[dc]) copy[dc] = new Date(copy[dc]); });
@@ -145,7 +146,8 @@ function applyDatasetPayload(data) {
 
   document.getElementById('statusDot').classList.add('on');
   document.getElementById('statusText').textContent = data.name;
-  document.getElementById('pillText').innerHTML = '<b>' + escapeHtml(data.name) + '</b> · ' + data.rowCount + ' rows';
+  const joinBadge = state.joinInfo ? ` <span style="color:var(--teal);font-weight:600;">· combined</span>` : '';
+  document.getElementById('pillText').innerHTML = '<b>' + escapeHtml(data.name) + '</b> · ' + data.rowCount + ' rows' + joinBadge;
   document.getElementById('uploadSummary').style.display = 'block';
   goPanel('dashboard');
 }
@@ -159,6 +161,7 @@ function goPanel(name) {
   document.querySelectorAll('.panel').forEach(p => p.classList.toggle('active', p.id === 'panel-' + name));
   const titles = {
     upload: ['Upload your data', 'CSV or TSV — Lucid profiles it, builds a dashboard, and grounds the agent in the real numbers.'],
+    combine: ['Combine two datasets', 'Join related files on a shared column, like Power BI relationships.'],
     dashboard: ['Dashboard', "Auto-generated from your dataset's actual structure."],
     insights: ['Insights', 'Plain-language findings, each traceable to a real calculation.'],
     forecast: ['Forecast', 'A transparent, linear projection — not a black box.'],
@@ -166,6 +169,7 @@ function goPanel(name) {
   };
   document.getElementById('topTitle').textContent = titles[name][0];
   document.getElementById('topSub').textContent = titles[name][1];
+  if (name === 'combine') setupCombinePanel();
 }
 
 /* ===================== FILE UPLOAD ===================== */
@@ -252,6 +256,18 @@ function renderSchema() {
 }
 
 /* ===================== DASHBOARD ===================== */
+// Columns like "Organization Id" or "Name" are technically categorical (not
+// numeric, not dates) but are effectively unique per row — charting them as
+// "count by category" or "share" produces bars that are all 1 and pie slices
+// that look meaningful but represent single rows. This filters those out so
+// charts only use columns where values genuinely repeat.
+function meaningfulCategoricalCols() {
+  return state.categoricalCols.filter(name => {
+    const stats = state.columns.find(c => c.name === name).stats;
+    return state.rowCount > 0 && (stats.distinct / state.rowCount) <= 0.5;
+  });
+}
+
 function renderDashboard() {
   document.getElementById('dashEmpty').style.display = 'none';
   document.getElementById('dashContent').style.display = 'block';
@@ -292,8 +308,9 @@ function renderDashboard() {
     });
   }
 
-  if (state.categoricalCols.length) {
-    const col = state.categoricalCols[0];
+  const chartableCats = meaningfulCategoricalCols();
+  if (chartableCats.length) {
+    const col = chartableCats[0];
     const stats = state.columns.find(c => c.name === col).stats;
     const wrap = document.createElement('div');
     wrap.className = 'chart-card';
@@ -326,8 +343,8 @@ function renderDashboard() {
     });
   }
 
-  if (state.categoricalCols.length > 1) {
-    const col = state.categoricalCols[1];
+  if (chartableCats.length > 1) {
+    const col = chartableCats[1];
     const stats = state.columns.find(c => c.name === col).stats;
     const wrap = document.createElement('div');
     wrap.className = 'chart-card';
@@ -504,5 +521,89 @@ async function sendChat() {
   } catch (err) {
     removeTyping();
     addAgentMessage(err.message || 'Something went wrong reaching the analysis engine. Please try again.', null, false);
+  }
+}
+
+/* ===================== COMBINE DATASETS ===================== */
+async function setupCombinePanel() {
+  let list = [];
+  try { list = await apiJSON('/api/datasets', 'GET'); } catch (err) { /* not fatal */ }
+
+  const empty = document.getElementById('combineEmpty');
+  const content = document.getElementById('combineContent');
+  if (list.length < 2) {
+    empty.style.display = 'block'; content.style.display = 'none'; return;
+  }
+  empty.style.display = 'none'; content.style.display = 'block';
+
+  const selA = document.getElementById('combineDatasetA');
+  const selB = document.getElementById('combineDatasetB');
+  const optionsHtml = list.map(d => `<option value="${d.id}">${escapeHtml(d.name)} · ${d.rowCount} rows</option>`).join('');
+  selA.innerHTML = optionsHtml;
+  selB.innerHTML = optionsHtml;
+  // Default to two different datasets when possible, so the columns
+  // populate meaningfully on first open instead of both pointing at #1.
+  if (list.length > 1) selB.value = list[1].id;
+
+  selA.onchange = () => populateJoinColumnOptions('A');
+  selB.onchange = () => populateJoinColumnOptions('B');
+  await populateJoinColumnOptions('A');
+  await populateJoinColumnOptions('B');
+
+  document.getElementById('combineRunBtn').onclick = runCombine;
+  document.getElementById('combineResult').innerHTML = '';
+}
+
+async function populateJoinColumnOptions(which) {
+  const datasetSel = document.getElementById('combineDataset' + which);
+  const columnSel = document.getElementById('combineColumn' + which);
+  const datasetId = datasetSel.value;
+  if (!datasetId) { columnSel.innerHTML = ''; return; }
+  try {
+    const data = await apiJSON('/api/datasets/' + datasetId, 'GET');
+    columnSel.innerHTML = data.columns.map(c => `<option value="${escapeAttr(c.name)}">${escapeHtml(c.name)} (${c.type})</option>`).join('');
+  } catch (err) {
+    columnSel.innerHTML = '';
+  }
+}
+// Attribute-safe escaping (option value=""), distinct from escapeHtml which
+// is only safe for text content — an unescaped quote in a column name could
+// otherwise break out of the attribute here.
+function escapeAttr(str) {
+  return String(str).replace(/&/g, '&amp;').replace(/"/g, '&quot;');
+}
+
+async function runCombine() {
+  const datasetAId = document.getElementById('combineDatasetA').value;
+  const columnA = document.getElementById('combineColumnA').value;
+  const datasetBId = document.getElementById('combineDatasetB').value;
+  const columnB = document.getElementById('combineColumnB').value;
+  const resultEl = document.getElementById('combineResult');
+
+  if (!datasetAId || !datasetBId || !columnA || !columnB) {
+    resultEl.innerHTML = `<div class="join-banner warn">Pick both datasets and both join columns first.</div>`;
+    return;
+  }
+  if (datasetAId === datasetBId) {
+    resultEl.innerHTML = `<div class="join-banner warn">Pick two different datasets to combine.</div>`;
+    return;
+  }
+
+  resultEl.innerHTML = `<div class="join-banner warn">Combining…</div>`;
+  try {
+    const data = await apiJSON('/api/datasets/combine', 'POST', { datasetAId, columnA, datasetBId, columnB });
+    const j = data.joinInfo;
+    const matchRateA = j.rowsA ? Math.round((j.rowsA - j.unmatchedA) / j.rowsA * 100) : 0;
+    const dupNote = j.duplicateKeyGroups ? ` ${j.duplicateKeyGroups} key value(s) matched more than one row on the second dataset, so some rows appear more than once in the result — that's expected for one-to-many relationships (e.g. one customer, many orders), but worth knowing.` : '';
+    resultEl.innerHTML = `
+      <div class="join-banner good">
+        <b>Combined into "${escapeHtml(data.name)}"</b> — ${data.rowCount} matched rows (${matchRateA}% of ${escapeHtml(j.datasetAName)} matched).
+        ${j.unmatchedA} row(s) in ${escapeHtml(j.datasetAName)} had no match, ${j.unmatchedB} row(s) in ${escapeHtml(j.datasetBName)} had no match.${dupNote}
+      </div>
+      <button class="btn btn-primary" style="margin-top:12px;" onclick="loadDataset('${data.id}')">View combined dashboard</button>
+    `;
+    await refreshDatasetPicker();
+  } catch (err) {
+    resultEl.innerHTML = `<div class="join-banner warn">${escapeHtml(err.message || 'Could not combine these datasets.')}</div>`;
   }
 }
