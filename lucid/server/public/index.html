@@ -248,6 +248,13 @@ select{
 .auth-switch button{background:none;border:none;color:var(--teal);font-size:12.5px;font-weight:600;padding:0;}
 .logout-btn{background:none;border:1px solid var(--line);border-radius:20px;padding:7px 13px;font-size:12px;color:var(--slate);margin-left:8px;}
 .pill-row{display:flex;align-items:center;}
+.combine-row{display:grid;grid-template-columns:1fr 1fr;gap:24px;}
+.combine-col{display:flex;flex-direction:column;}
+.combine-label{font-size:11px;text-transform:uppercase;letter-spacing:.5px;color:var(--slate-2);font-weight:600;margin-bottom:6px;}
+.combine-col select{margin-bottom:4px;}
+.join-banner{border-radius:10px;padding:14px 16px;font-size:12.5px;line-height:1.6;}
+.join-banner.good{background:var(--teal-soft);border:1px solid #A7DED8;color:#0B5F57;}
+.join-banner.warn{background:var(--amber-soft);border:1px solid #E9D19C;color:#7A5A0C;}
 
 @media (max-width:900px){
   .sidebar{width:76px;}
@@ -283,6 +290,7 @@ select{
   </div>
   <div class="nav">
     <button class="nav-item active" data-panel="upload"><span class="dot"></span><span class="label">Upload Data</span></button>
+    <button class="nav-item" data-panel="combine"><span class="dot"></span><span class="label">Combine Data</span></button>
     <button class="nav-item" data-panel="dashboard"><span class="dot"></span><span class="label">Dashboard</span></button>
     <button class="nav-item" data-panel="insights"><span class="dot"></span><span class="label">Insights</span></button>
     <button class="nav-item" data-panel="forecast"><span class="dot"></span><span class="label">Forecast</span></button>
@@ -334,6 +342,38 @@ select{
           <thead><tr><th>Column</th><th>Detected type</th><th>Summary</th></tr></thead>
           <tbody id="schemaBody"></tbody>
         </table>
+      </div>
+    </div>
+
+    <!-- COMBINE -->
+    <div class="panel" id="panel-combine">
+      <div id="combineEmpty" class="empty-state">
+        <h3>Upload at least two datasets first</h3>
+        <p>Combining joins two of your existing datasets on a shared column — like matching Orders to Customers on a customer ID — into one new dataset with everything downstream (dashboard, insights, forecast, chat) built from the combined result.</p>
+        <button class="btn btn-primary" onclick="goPanel('upload')">Go to Upload</button>
+      </div>
+      <div id="combineContent" style="display:none;">
+        <div class="section-head">
+          <div><h2>Combine two datasets</h2><p>Pick the column in each dataset that identifies the same real-world thing — e.g. a customer ID in both.</p></div>
+        </div>
+        <div class="chart-card full" style="padding:22px 24px;">
+          <div class="combine-row">
+            <div class="combine-col">
+              <label class="combine-label">Dataset A</label>
+              <select id="combineDatasetA"></select>
+              <label class="combine-label" style="margin-top:14px;">Join column in A</label>
+              <select id="combineColumnA"></select>
+            </div>
+            <div class="combine-col">
+              <label class="combine-label">Dataset B</label>
+              <select id="combineDatasetB"></select>
+              <label class="combine-label" style="margin-top:14px;">Join column in B</label>
+              <select id="combineColumnB"></select>
+            </div>
+          </div>
+          <button class="btn btn-primary" id="combineRunBtn" style="margin-top:18px;">Combine datasets</button>
+          <div id="combineResult" style="margin-top:18px;"></div>
+        </div>
       </div>
     </div>
 
