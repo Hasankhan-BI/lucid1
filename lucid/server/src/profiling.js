@@ -221,4 +221,73 @@ function computeForecast(rows, dateCol, metric, horizon) {
   return { metric, horizon, dateCol, historicalLabels: grouped.labels, historicalValues: grouped.values, futureLabels, projected, slope, summary };
 }
 
-module.exports = { profileRows, computeForecast, groupByDate, linreg, fmt };
+// Normalizes a join key for matching so "123" (string) and 123 (number), or
+// values with stray whitespace/casing, still match correctly.
+function normalizeJoinKey(v) {
+  if (v === null || v === undefined || v === '') return null;
+  return String(v).trim().toLowerCase();
+}
+
+// Merges a matched row pair. Columns unique to B are added as-is; columns
+// that collide with A's names (other than the join column itself) are
+// prefixed with the B dataset's label so nothing silently overwrites data.
+function mergeRow(rowA, rowB, labelB, colB) {
+  const merged = { ...rowA };
+  Object.keys(rowB).forEach(k => {
+    if (k === colB) return; // same join key as colA, already present
+    merged[(k in merged) ? `${labelB}_${k}` : k] = rowB[k];
+  });
+  return merged;
+}
+
+// Inner-joins two row sets on the given columns. Every match becomes one
+// row (a duplicate key on either side produces one merged row per pair, the
+// standard SQL join behavior) — the returned stats make that visible rather
+// than silently multiplying or dropping rows without explanation.
+function joinDatasets(rowsA, colA, rowsB, colB, labelB) {
+  const indexB = new Map();
+  rowsB.forEach(r => {
+    const key = normalizeJoinKey(r[colB]);
+    if (key === null) return;
+    if (!indexB.has(key)) indexB.set(key, []);
+    indexB.get(key).push(r);
+  });
+
+  const matchedBKeys = new Set();
+  const joinedRows = [];
+  let duplicateKeyGroups = 0;
+
+  rowsA.forEach(rowA => {
+    const key = normalizeJoinKey(rowA[colA]);
+    const matches = key !== null ? indexB.get(key) : undefined;
+    if (matches && matches.length) {
+      if (matches.length > 1) duplicateKeyGroups++;
+      matchedBKeys.add(key);
+      matches.forEach(rowB => joinedRows.push(mergeRow(rowA, rowB, labelB, colB)));
+    }
+  });
+
+  const unmatchedA = rowsA.filter(r => {
+    const key = normalizeJoinKey(r[colA]);
+    return key === null || !indexB.has(key);
+  }).length;
+
+  const unmatchedB = rowsB.filter(r => {
+    const key = normalizeJoinKey(r[colB]);
+    return key === null || !matchedBKeys.has(key);
+  }).length;
+
+  return {
+    rows: joinedRows,
+    stats: {
+      rowsA: rowsA.length,
+      rowsB: rowsB.length,
+      matchedRows: joinedRows.length,
+      unmatchedA,
+      unmatchedB,
+      duplicateKeyGroups
+    }
+  };
+}
+
+module.exports = { profileRows, computeForecast, groupByDate, linreg, fmt, joinDatasets };
