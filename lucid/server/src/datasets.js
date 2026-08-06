@@ -76,6 +76,7 @@ router.get('/:id', requireAuth, (req, res) => {
     correlations: JSON.parse(dataset.correlationsJson),
     insights: JSON.parse(dataset.insightsJson),
     forecast: dataset.forecastJson ? JSON.parse(dataset.forecastJson) : null,
+    joinInfo: dataset.joinInfoJson ? JSON.parse(dataset.joinInfoJson) : null,
     rows: rows.slice(0, MAX_ROWS_RETURNED)
   });
 });
