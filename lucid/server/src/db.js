@@ -33,6 +33,7 @@ db.exec(`
     correlationsJson TEXT NOT NULL,
     insightsJson TEXT NOT NULL,
     forecastJson TEXT,
+    joinInfoJson TEXT,
     createdAt TEXT NOT NULL,
     FOREIGN KEY (userId) REFERENCES users(id) ON DELETE CASCADE
   );
@@ -46,6 +47,16 @@ db.exec(`
     FOREIGN KEY (datasetId) REFERENCES datasets(id) ON DELETE CASCADE
   );
 `);
+
+// Migration for databases created before joinInfoJson existed (CREATE TABLE
+// IF NOT EXISTS above only applies to brand-new tables, not existing ones).
+// Safe to run every startup — ALTER TABLE throws if the column is already
+// there, which we just ignore.
+try {
+  db.exec('ALTER TABLE datasets ADD COLUMN joinInfoJson TEXT');
+} catch (e) {
+  // Column already exists — expected on every startup after the first.
+}
 
 function id() {
   return crypto.randomBytes(12).toString('hex');
@@ -66,16 +77,17 @@ function findUserById(userId) {
 }
 
 /* ---------------- datasets ---------------- */
-function createDataset(userId, profile, name) {
+function createDataset(userId, profile, name, joinInfo = null) {
   const datasetId = id();
   db.prepare(`INSERT INTO datasets
-    (id, userId, name, filePath, rowCount, columnsJson, numericColsJson, categoricalColsJson, dateColsJson, correlationsJson, insightsJson, forecastJson, createdAt)
-    VALUES (?, ?, ?, '', ?, ?, ?, ?, ?, ?, ?, NULL, ?)`)
+    (id, userId, name, filePath, rowCount, columnsJson, numericColsJson, categoricalColsJson, dateColsJson, correlationsJson, insightsJson, forecastJson, joinInfoJson, createdAt)
+    VALUES (?, ?, ?, '', ?, ?, ?, ?, ?, ?, ?, NULL, ?, ?)`)
     .run(
       datasetId, userId, name, profile.rowCount,
       JSON.stringify(profile.columns), JSON.stringify(profile.numericCols),
       JSON.stringify(profile.categoricalCols), JSON.stringify(profile.dateCols),
       JSON.stringify(profile.correlations), JSON.stringify(profile.insights),
+      joinInfo ? JSON.stringify(joinInfo) : null,
       new Date().toISOString()
     );
   return datasetId;
