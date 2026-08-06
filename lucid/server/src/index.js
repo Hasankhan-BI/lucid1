@@ -6,6 +6,7 @@ const path = require('path');
 const { router: authRouter } = require('./auth');
 const datasetsRouter = require('./datasets');
 const chatRouter = require('./chat');
+const combineRouter = require('./combine');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -21,6 +22,7 @@ app.use(express.json({ limit: '2mb' }));
 app.get('/api/health', (req, res) => res.json({ ok: true }));
 
 app.use('/api/auth', authRouter);
+app.use('/api/datasets', combineRouter); // exposes POST /api/datasets/combine
 app.use('/api/datasets', datasetsRouter);
 app.use('/api/datasets', chatRouter); // exposes /api/datasets/:id/chat
 
@@ -33,7 +35,7 @@ app.get('*', (req, res) => {
 
 app.listen(PORT, () => {
   console.log(`Lucid server listening on http://localhost:${PORT}`);
-  if (!process.env.ANTHROPIC_API_KEY) {
-    console.warn('Warning: ANTHROPIC_API_KEY is not set — the chat agent will not work until it is.');
+  if (!process.env.GEMINI_API_KEY) {
+    console.warn('Warning: GEMINI_API_KEY is not set — the chat agent will not work until it is.');
   }
 });
