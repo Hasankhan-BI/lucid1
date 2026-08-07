@@ -597,6 +597,17 @@ async function populateJoinColumnOptions(which) {
   try {
     const data = await apiJSON('/api/datasets/' + datasetId, 'GET');
     columnSel.innerHTML = data.columns.map(c => `<option value="${escapeAttr(c.name)}">${escapeHtml(c.name)} (${c.type})</option>`).join('');
+
+    // If the other side already has a column selected with the exact same
+    // name (e.g. both files have "customer_id"), default to it here too —
+    // leaving mismatched defaults in place is exactly how a join silently
+    // ends up matching the wrong columns.
+    const otherWhich = which === 'A' ? 'B' : 'A';
+    const otherColumnSel = document.getElementById('combineColumn' + otherWhich);
+    const otherValue = otherColumnSel ? otherColumnSel.value : '';
+    if (otherValue && data.columns.some(c => c.name === otherValue)) {
+      columnSel.value = otherValue;
+    }
   } catch (err) {
     columnSel.innerHTML = '';
   }
@@ -632,7 +643,7 @@ async function runCombine() {
     const dupNote = j.duplicateKeyGroups ? ` ${j.duplicateKeyGroups} key value(s) matched more than one row on the second dataset, so some rows appear more than once in the result — that's expected for one-to-many relationships (e.g. one customer, many orders), but worth knowing.` : '';
     resultEl.innerHTML = `
       <div class="join-banner good">
-        <b>Combined into "${escapeHtml(data.name)}"</b> — ${data.rowCount} matched rows (${matchRateA}% of ${escapeHtml(j.datasetAName)} matched).
+        <b>Combined into "${escapeHtml(data.name)}"</b> — joined on <code>${escapeHtml(j.columnA)}</code> ↔ <code>${escapeHtml(j.columnB)}</code>: ${data.rowCount} matched rows (${matchRateA}% of ${escapeHtml(j.datasetAName)} matched).
         ${j.unmatchedA} row(s) in ${escapeHtml(j.datasetAName)} had no match, ${j.unmatchedB} row(s) in ${escapeHtml(j.datasetBName)} had no match.${dupNote}
       </div>
       <button class="btn btn-primary" style="margin-top:12px;" onclick="loadDataset('${data.id}')">View combined dashboard</button>
