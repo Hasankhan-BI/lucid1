@@ -177,37 +177,72 @@ const dropzone = document.getElementById('dropzone');
 const fileInput = document.getElementById('fileInput');
 document.getElementById('browseBtn').addEventListener('click', () => fileInput.click());
 dropzone.addEventListener('click', e => { if (e.target.id !== 'sampleBtn' && e.target.id !== 'browseBtn') fileInput.click(); });
-fileInput.addEventListener('change', e => { if (e.target.files[0]) handleFile(e.target.files[0]); });
+fileInput.addEventListener('change', e => { if (e.target.files.length) handleFiles([...e.target.files]); });
 ['dragover', 'dragenter'].forEach(ev => dropzone.addEventListener(ev, e => { e.preventDefault(); dropzone.classList.add('drag'); }));
 ['dragleave', 'drop'].forEach(ev => dropzone.addEventListener(ev, e => { e.preventDefault(); dropzone.classList.remove('drag'); }));
-dropzone.addEventListener('drop', e => { if (e.dataTransfer.files[0]) handleFile(e.dataTransfer.files[0]); });
+dropzone.addEventListener('drop', e => { if (e.dataTransfer.files.length) handleFiles([...e.dataTransfer.files]); });
 
 document.getElementById('sampleBtn').addEventListener('click', () => {
   const csv = generateSampleCSV();
   const blob = new Blob([csv], { type: 'text/csv' });
   const file = new File([blob], 'sample_sales_data.csv', { type: 'text/csv' });
-  handleFile(file);
+  handleFiles([file]);
 });
 
-async function handleFile(file) {
+// Uploads one or more files in sequence (not parallel — keeps server load
+// predictable and lets the progress list update file by file rather than
+// all finishing at once with no feedback in between). The dashboard opens
+// on the last successfully uploaded file when it's done.
+async function handleFiles(files) {
   if (!state.token) { showAuth('login'); return; }
-  const form = new FormData();
-  form.append('file', file);
   const dz = document.getElementById('dropzone');
   const originalHtml = dz.innerHTML;
-  dz.innerHTML = '<h3>Uploading & profiling…</h3><p>Parsing, computing statistics, and building your dashboard.</p>';
-  try {
-    const res = await apiFetch('/api/datasets/upload', { method: 'POST', body: form });
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.error || 'Upload failed');
-    applyDatasetPayload(data);
-    await refreshDatasetPicker();
-  } catch (err) {
-    alert(err.message || 'Could not upload file.');
-  } finally {
-    dz.innerHTML = originalHtml;
+
+  const statuses = files.map(f => ({ name: f.name, state: 'pending' }));
+  const renderProgress = () => {
+    dz.innerHTML = `
+      <h3>Uploading ${files.length > 1 ? files.length + ' files' : '1 file'}…</h3>
+      <div class="upload-progress-list">
+        ${statuses.map(s => `
+          <div class="upload-progress-row upload-progress-${s.state}">
+            <span class="upload-progress-icon">${s.state === 'done' ? '✓' : s.state === 'error' ? '✕' : s.state === 'active' ? '…' : '·'}</span>
+            <span class="upload-progress-name">${escapeHtml(s.name)}</span>
+            ${s.error ? `<span class="upload-progress-error">${escapeHtml(s.error)}</span>` : ''}
+          </div>`).join('')}
+      </div>`;
+  };
+  renderProgress();
+
+  let lastSuccessful = null;
+  for (let i = 0; i < files.length; i++) {
+    statuses[i].state = 'active';
+    renderProgress();
+    const form = new FormData();
+    form.append('file', files[i]);
+    try {
+      const res = await apiFetch('/api/datasets/upload', { method: 'POST', body: form });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Upload failed');
+      statuses[i].state = 'done';
+      lastSuccessful = data;
+    } catch (err) {
+      statuses[i].state = 'error';
+      statuses[i].error = err.message || 'Could not upload this file.';
+    }
+    renderProgress();
+  }
+
+  await refreshDatasetPicker();
+  if (lastSuccessful) applyDatasetPayload(lastSuccessful);
+
+  // Leave the progress list visible for a moment so errors are readable,
+  // rather than snapping straight to the dashboard and hiding them.
+  const anyErrors = statuses.some(s => s.state === 'error');
+  if (!anyErrors) {
+    setTimeout(() => { dz.innerHTML = originalHtml; }, 400);
   }
 }
+
 
 function generateSampleCSV() {
   const regions = ['North', 'South', 'East', 'West'];
