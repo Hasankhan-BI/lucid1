@@ -5,8 +5,8 @@ FROM node:22-slim
 WORKDIR /app
 
 # Install dependencies first so this layer is cached unless package.json changes.
-COPY package.json package-lock.json ./
-RUN npm ci --omit=dev --no-audit --no-fund
+COPY package.json ./
+RUN npm install --omit=dev --no-audit --no-fund
 
 # Then copy the rest of the app.
 COPY src ./src
