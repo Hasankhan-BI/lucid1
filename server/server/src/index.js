@@ -7,6 +7,7 @@ const { router: authRouter } = require('./auth');
 const datasetsRouter = require('./datasets');
 const chatRouter = require('./chat');
 const combineRouter = require('./combine');
+const cleaningRouter = require('./cleaning');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -23,6 +24,7 @@ app.get('/api/health', (req, res) => res.json({ ok: true }));
 
 app.use('/api/auth', authRouter);
 app.use('/api/datasets', combineRouter); // exposes POST /api/datasets/combine
+app.use('/api/datasets', cleaningRouter); // exposes POST /api/datasets/:id/clean
 app.use('/api/datasets', datasetsRouter);
 app.use('/api/datasets', chatRouter); // exposes /api/datasets/:id/chat
 
