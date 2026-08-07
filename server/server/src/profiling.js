@@ -290,4 +290,106 @@ function joinDatasets(rowsA, colA, rowsB, colB, labelB) {
   };
 }
 
-module.exports = { profileRows, computeForecast, groupByDate, linreg, fmt, joinDatasets };
+// Applies a set of cleaning operations to rows, using the ALREADY-COMPUTED
+// column stats (mean/median/mode/IQR bounds) from profiling the original
+// data — so "fill with mean" etc. reflect the data as uploaded, not a
+// moving target recomputed mid-cleaning. Returns the cleaned rows plus a
+// report of exactly what changed, so the UI can show real numbers instead
+// of just "done".
+function applyCleaning(rows, columns, options) {
+  const { removeDuplicates = false, columnOps = {}, removeOutliers = [] } = options || {};
+  const colByName = {};
+  columns.forEach(c => { colByName[c.name] = c; });
+
+  let cleaned = rows.map(r => ({ ...r }));
+  const report = {
+    startingRows: rows.length,
+    rowsDroppedForMissing: 0,
+    outliersRemoved: 0,
+    duplicatesRemoved: 0,
+    textNormalized: [],
+    missingFilled: {}
+  };
+
+  // 1. Trim whitespace / normalize case on text columns — done first since
+  // it affects which values count as duplicates or match the mode later.
+  Object.entries(columnOps).forEach(([colName, ops]) => {
+    if (!colByName[colName] || (!ops.trim && !ops.case)) return;
+    cleaned.forEach(r => {
+      if (typeof r[colName] !== 'string') return;
+      let v = r[colName];
+      if (ops.trim) v = v.trim();
+      if (ops.case === 'upper') v = v.toUpperCase();
+      else if (ops.case === 'lower') v = v.toLowerCase();
+      else if (ops.case === 'title') v = v.replace(/\w\S*/g, t => t.charAt(0).toUpperCase() + t.slice(1).toLowerCase());
+      r[colName] = v;
+    });
+    report.textNormalized.push(colName);
+  });
+
+  // 2. Missing values per column: drop the row, or fill with mean/median/
+  // most-common-value/a fixed value the user typed in.
+  Object.entries(columnOps).forEach(([colName, ops]) => {
+    if (!ops.missingStrategy || ops.missingStrategy === 'none' || !colByName[colName]) return;
+    const col = colByName[colName];
+    const isMissing = v => v === null || v === undefined || v === '';
+
+    if (ops.missingStrategy === 'drop_row') {
+      const before = cleaned.length;
+      cleaned = cleaned.filter(r => !isMissing(r[colName]));
+      report.rowsDroppedForMissing += before - cleaned.length;
+      return;
+    }
+
+    let fillValue;
+    if (ops.missingStrategy === 'fill_mean' && col.type === 'numeric') fillValue = col.stats.mean;
+    else if (ops.missingStrategy === 'fill_median' && col.type === 'numeric') fillValue = col.stats.median;
+    else if (ops.missingStrategy === 'fill_mode') {
+      // Recompute the mode from the CURRENT (post-normalization) values,
+      // not the original profile — trim/case above may have changed what
+      // the most common value actually is.
+      const freq = {};
+      cleaned.forEach(r => { if (!isMissing(r[colName])) freq[r[colName]] = (freq[r[colName]] || 0) + 1; });
+      const sorted = Object.entries(freq).sort((a, b) => b[1] - a[1]);
+      if (sorted.length) fillValue = sorted[0][0];
+    }
+    else if (ops.missingStrategy === 'fill_custom') fillValue = ops.customValue;
+    if (fillValue === undefined || fillValue === null) return;
+
+    let count = 0;
+    cleaned.forEach(r => { if (isMissing(r[colName])) { r[colName] = fillValue; count++; } });
+    if (count) report.missingFilled[colName] = { strategy: ops.missingStrategy, value: fillValue, count };
+  });
+
+  // 3. Remove outlier rows for chosen numeric columns, using the IQR bounds
+  // from the ORIGINAL profile (not recomputed after other edits).
+  removeOutliers.forEach(colName => {
+    const col = colByName[colName];
+    if (!col || col.type !== 'numeric') return;
+    const { q1, q3 } = col.stats;
+    const iqr = q3 - q1;
+    const lower = q1 - 1.5 * iqr, upper = q3 + 1.5 * iqr;
+    const before = cleaned.length;
+    cleaned = cleaned.filter(r => typeof r[colName] !== 'number' || (r[colName] >= lower && r[colName] <= upper));
+    report.outliersRemoved += before - cleaned.length;
+  });
+
+  // 4. Remove exact duplicate rows last, since normalization above can turn
+  // near-duplicates ("USA " vs "usa") into true duplicates.
+  if (removeDuplicates) {
+    const seen = new Set();
+    const before = cleaned.length;
+    cleaned = cleaned.filter(r => {
+      const key = JSON.stringify(r);
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+    report.duplicatesRemoved = before - cleaned.length;
+  }
+
+  report.endingRows = cleaned.length;
+  return { rows: cleaned, report };
+}
+
+module.exports = { profileRows, computeForecast, groupByDate, linreg, fmt, joinDatasets, applyCleaning };
