@@ -162,6 +162,7 @@ function goPanel(name) {
   const titles = {
     upload: ['Upload your data', 'CSV or TSV — Lucid profiles it, builds a dashboard, and grounds the agent in the real numbers.'],
     combine: ['Combine two datasets', 'Join related files on a shared column, like Power BI relationships.'],
+    clean: ['Clean a dataset', 'Fix missing values, inconsistent text, outliers, and duplicates.'],
     dashboard: ['Dashboard', "Auto-generated from your dataset's actual structure."],
     insights: ['Insights', 'Plain-language findings, each traceable to a real calculation.'],
     forecast: ['Forecast', 'A transparent, linear projection — not a black box.'],
@@ -170,6 +171,7 @@ function goPanel(name) {
   document.getElementById('topTitle').textContent = titles[name][0];
   document.getElementById('topSub').textContent = titles[name][1];
   if (name === 'combine') setupCombinePanel();
+  if (name === 'clean') setupCleanPanel();
 }
 
 /* ===================== FILE UPLOAD ===================== */
@@ -651,5 +653,122 @@ async function runCombine() {
     await refreshDatasetPicker();
   } catch (err) {
     resultEl.innerHTML = `<div class="join-banner warn">${escapeHtml(err.message || 'Could not combine these datasets.')}</div>`;
+  }
+}
+
+/* ===================== CLEAN DATA ===================== */
+let cleanDatasetCache = null; // full dataset detail for whichever dataset is picked
+
+async function setupCleanPanel() {
+  let list = [];
+  try { list = await apiJSON('/api/datasets', 'GET'); } catch (err) { /* not fatal */ }
+
+  const empty = document.getElementById('cleanEmpty');
+  const content = document.getElementById('cleanContent');
+  if (!list.length) { empty.style.display = 'block'; content.style.display = 'none'; return; }
+  empty.style.display = 'none'; content.style.display = 'block';
+
+  const picker = document.getElementById('cleanDatasetPicker');
+  picker.innerHTML = list.map(d => `<option value="${d.id}">${escapeHtml(d.name)} · ${d.rowCount} rows</option>`).join('');
+  picker.onchange = () => loadCleanTable(picker.value);
+  await loadCleanTable(picker.value);
+
+  document.getElementById('cleanRunBtn').onclick = runClean;
+  document.getElementById('cleanResult').innerHTML = '';
+}
+
+async function loadCleanTable(datasetId) {
+  const body = document.getElementById('cleanTableBody');
+  body.innerHTML = `<tr><td colspan="3">Loading…</td></tr>`;
+  try {
+    cleanDatasetCache = await apiJSON('/api/datasets/' + datasetId, 'GET');
+  } catch (err) {
+    body.innerHTML = `<tr><td colspan="3">Could not load this dataset.</td></tr>`;
+    return;
+  }
+
+  const rows = cleanDatasetCache.columns.map(c => {
+    const issues = [];
+    if (c.missingPct > 0) issues.push(`${c.missingPct}% missing`);
+    if (c.type === 'numeric' && c.stats.outlierCount > 0) issues.push(`${c.stats.outlierCount} outlier(s)`);
+    const issueText = issues.length ? issues.join(', ') : 'None detected';
+
+    let fixControl = '<span style="color:var(--slate-2);font-size:12px;">—</span>';
+    if (c.missingPct > 0 || c.type !== 'date') {
+      const missingOptions = ['<option value="none">Leave as is</option>'];
+      if (c.missingPct > 0) {
+        missingOptions.push('<option value="drop_row">Drop rows missing this</option>');
+        if (c.type === 'numeric') {
+          missingOptions.push('<option value="fill_mean">Fill missing with mean</option>');
+          missingOptions.push('<option value="fill_median">Fill missing with median</option>');
+        } else {
+          missingOptions.push('<option value="fill_mode">Fill missing with most common</option>');
+        }
+      }
+      const textControls = c.type === 'categorical' ? `
+        <label style="display:flex;align-items:center;gap:5px;font-size:11.5px;margin-top:6px;">
+          <input type="checkbox" class="clean-trim" data-col="${escapeAttr(c.name)}" style="width:13px;height:13px;" /> Trim whitespace
+        </label>
+        <select class="clean-case" data-col="${escapeAttr(c.name)}" style="margin-top:5px;font-size:11.5px;padding:5px 26px 5px 8px;">
+          <option value="">Keep casing</option>
+          <option value="upper">UPPERCASE</option>
+          <option value="lower">lowercase</option>
+          <option value="title">Title Case</option>
+        </select>` : '';
+      const outlierControl = (c.type === 'numeric' && c.stats.outlierCount > 0) ? `
+        <label style="display:flex;align-items:center;gap:5px;font-size:11.5px;margin-top:6px;">
+          <input type="checkbox" class="clean-outliers" data-col="${escapeAttr(c.name)}" style="width:13px;height:13px;" /> Remove ${c.stats.outlierCount} outlier row(s)
+        </label>` : '';
+      fixControl = `
+        <select class="clean-missing" data-col="${escapeAttr(c.name)}">${missingOptions.join('')}</select>
+        ${textControls}${outlierControl}`;
+    }
+
+    return `<tr><td>${escapeHtml(c.name)}</td><td>${issueText}</td><td>${fixControl}</td></tr>`;
+  }).join('');
+
+  body.innerHTML = rows;
+}
+
+async function runClean() {
+  const resultEl = document.getElementById('cleanResult');
+  if (!cleanDatasetCache) return;
+
+  const columnOps = {};
+  document.querySelectorAll('.clean-missing').forEach(sel => {
+    if (sel.value !== 'none') columnOps[sel.dataset.col] = { ...(columnOps[sel.dataset.col] || {}), missingStrategy: sel.value };
+  });
+  document.querySelectorAll('.clean-trim').forEach(cb => {
+    if (cb.checked) columnOps[cb.dataset.col] = { ...(columnOps[cb.dataset.col] || {}), trim: true };
+  });
+  document.querySelectorAll('.clean-case').forEach(sel => {
+    if (sel.value) columnOps[sel.dataset.col] = { ...(columnOps[sel.dataset.col] || {}), case: sel.value };
+  });
+  const removeOutliers = [...document.querySelectorAll('.clean-outliers')].filter(cb => cb.checked).map(cb => cb.dataset.col);
+  const removeDuplicates = document.getElementById('cleanRemoveDuplicates').checked;
+
+  if (!Object.keys(columnOps).length && !removeOutliers.length && !removeDuplicates) {
+    resultEl.innerHTML = `<div class="join-banner warn">Pick at least one fix before running — nothing is selected right now.</div>`;
+    return;
+  }
+
+  resultEl.innerHTML = `<div class="join-banner warn">Cleaning…</div>`;
+  try {
+    const data = await apiJSON(`/api/datasets/${cleanDatasetCache.id}/clean`, 'POST', { removeDuplicates, columnOps, removeOutliers });
+    const r = data.cleaningInfo.report;
+    const parts = [];
+    if (r.duplicatesRemoved) parts.push(`${r.duplicatesRemoved} duplicate row(s) removed`);
+    if (r.outliersRemoved) parts.push(`${r.outliersRemoved} outlier row(s) removed`);
+    if (r.rowsDroppedForMissing) parts.push(`${r.rowsDroppedForMissing} row(s) dropped for missing values`);
+    const filledCount = Object.values(r.missingFilled).reduce((a, f) => a + f.count, 0);
+    if (filledCount) parts.push(`${filledCount} missing value(s) filled`);
+    resultEl.innerHTML = `
+      <div class="join-banner good">
+        <b>Cleaned into "${escapeHtml(data.name)}"</b> — ${r.startingRows} rows → ${r.endingRows} rows. ${parts.join('. ')}.
+      </div>
+      <button class="btn btn-primary" style="margin-top:12px;" onclick="loadDataset('${data.id}')">View cleaned dashboard</button>
+    `;
+  } catch (err) {
+    resultEl.innerHTML = `<div class="join-banner warn">${escapeHtml(err.message || 'Could not clean this dataset.')}</div>`;
   }
 }
