@@ -127,6 +127,7 @@ router.get('/:id', requireAuth, (req, res) => {
     insights: JSON.parse(dataset.insightsJson),
     forecast: dataset.forecastJson ? JSON.parse(dataset.forecastJson) : null,
     joinInfo: dataset.joinInfoJson ? JSON.parse(dataset.joinInfoJson) : null,
+    cleaningInfo: dataset.cleaningInfoJson ? JSON.parse(dataset.cleaningInfoJson) : null,
     rows: rows.slice(0, MAX_ROWS_RETURNED)
   });
 });
