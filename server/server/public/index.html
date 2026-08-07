@@ -256,6 +256,42 @@ select{
 .join-banner.good{background:var(--teal-soft);border:1px solid #A7DED8;color:#0B5F57;}
 .join-banner.warn{background:var(--amber-soft);border:1px solid #E9D19C;color:#7A5A0C;}
 
+/* ---------- Visual polish pass ---------- */
+.kpi-card,.chart-card,.insight-card,.meta-card,.schema-table,.chat-wrap,.auth-card{
+  box-shadow:0 1px 2px rgba(16,19,25,.04), 0 1px 8px rgba(16,19,25,.03);
+  transition:box-shadow .18s ease, transform .18s ease, border-color .18s ease;
+}
+.kpi-card:hover,.chart-card:hover,.insight-card:hover,.meta-card:hover{
+  box-shadow:0 4px 16px rgba(16,19,25,.07), 0 1px 3px rgba(16,19,25,.05);
+  transform:translateY(-1px);
+  border-color:#CBD1DB;
+}
+.btn{transition:background .15s ease, box-shadow .15s ease, transform .12s ease;}
+.btn:active{transform:translateY(1px);}
+.btn-primary:hover{box-shadow:0 3px 10px rgba(13,17,23,.22);}
+.btn-ghost:hover{box-shadow:0 2px 6px rgba(16,19,25,.06);}
+select{
+  appearance:none;-webkit-appearance:none;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%235B6472' stroke-width='1.6' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  background-repeat:no-repeat;background-position:right 12px center;
+  padding-right:32px;cursor:pointer;transition:border-color .15s ease, box-shadow .15s ease;
+}
+select:hover{border-color:#B9C0CC;}
+select:focus{outline:none;border-color:var(--teal);box-shadow:0 0 0 3px rgba(15,155,142,.13);}
+.nav-item{transition:background .15s ease, color .15s ease, padding-left .15s ease;}
+.nav-item:hover{padding-left:16px;}
+.nav-item svg{flex-shrink:0;opacity:.75;}
+.nav-item.active svg{opacity:1;}
+.chart-card canvas{transition:opacity .2s ease;}
+.upload-progress-list{max-width:420px;margin:0 auto;text-align:left;display:flex;flex-direction:column;gap:8px;}
+.upload-progress-row{display:flex;align-items:center;gap:10px;padding:9px 13px;border-radius:8px;background:var(--paper);border:1px solid var(--line);font-size:12.5px;}
+.upload-progress-icon{width:16px;text-align:center;font-weight:700;color:var(--slate-2);flex-shrink:0;}
+.upload-progress-done .upload-progress-icon{color:var(--teal);}
+.upload-progress-error .upload-progress-icon{color:var(--red);}
+.upload-progress-active .upload-progress-icon{color:var(--violet);}
+.upload-progress-name{flex-shrink:0;font-weight:600;}
+.upload-progress-error-text,.upload-progress-error{color:var(--red);font-size:11.5px;}
+
 @media (max-width:900px){
   .sidebar{width:76px;}
   .brand-name,.brand-sub,.nav-item span.label,.status-line{display:none;}
@@ -289,12 +325,12 @@ select{
     </div>
   </div>
   <div class="nav">
-    <button class="nav-item active" data-panel="upload"><span class="dot"></span><span class="label">Upload Data</span></button>
-    <button class="nav-item" data-panel="combine"><span class="dot"></span><span class="label">Combine Data</span></button>
-    <button class="nav-item" data-panel="dashboard"><span class="dot"></span><span class="label">Dashboard</span></button>
-    <button class="nav-item" data-panel="insights"><span class="dot"></span><span class="label">Insights</span></button>
-    <button class="nav-item" data-panel="forecast"><span class="dot"></span><span class="label">Forecast</span></button>
-    <button class="nav-item" data-panel="chat"><span class="dot"></span><span class="label">Ask the Agent</span></button>
+    <button class="nav-item active" data-panel="upload"><svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M12 4v11m0-11l-4 4m4-4l4 4M5 17v2a2 2 0 002 2h10a2 2 0 002-2v-2" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg><span class="label">Upload Data</span></button>
+    <button class="nav-item" data-panel="combine"><svg width="16" height="16" viewBox="0 0 24 24" fill="none"><circle cx="7" cy="12" r="4" stroke="currentColor" stroke-width="1.8"/><circle cx="15" cy="12" r="4" stroke="currentColor" stroke-width="1.8"/></svg><span class="label">Combine Data</span></button>
+    <button class="nav-item" data-panel="dashboard"><svg width="16" height="16" viewBox="0 0 24 24" fill="none"><rect x="3.5" y="3.5" width="7" height="9" rx="1.2" stroke="currentColor" stroke-width="1.8"/><rect x="13.5" y="3.5" width="7" height="5" rx="1.2" stroke="currentColor" stroke-width="1.8"/><rect x="13.5" y="11.5" width="7" height="9" rx="1.2" stroke="currentColor" stroke-width="1.8"/><rect x="3.5" y="15.5" width="7" height="5" rx="1.2" stroke="currentColor" stroke-width="1.8"/></svg><span class="label">Dashboard</span></button>
+    <button class="nav-item" data-panel="insights"><svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M9 18h6M10 21h4M12 3a6 6 0 00-3.5 10.9c.5.4.8 1 .8 1.6h5.4c0-.6.3-1.2.8-1.6A6 6 0 0012 3z" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg><span class="label">Insights</span></button>
+    <button class="nav-item" data-panel="forecast"><svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M4 16l5-5 4 4 7-8" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><path d="M15 7h5v5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg><span class="label">Forecast</span></button>
+    <button class="nav-item" data-panel="chat"><svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M4 5h16v11H8l-4 4V5z" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg><span class="label">Ask the Agent</span></button>
   </div>
   <div class="sidebar-footer">
     <div class="status-line"><span class="status-dot" id="statusDot"></span><span id="statusText">No dataset loaded</span></div>
@@ -323,13 +359,13 @@ select{
         <div class="icon">
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none"><path d="M12 4v11m0-11l-4 4m4-4l4 4M5 17v2a2 2 0 002 2h10a2 2 0 002-2v-2" stroke="white" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
         </div>
-        <h3>Drop a CSV or TSV file here</h3>
-        <p>Or click to browse. Everything is processed in your browser first, then summarized statistics — never your raw file — are used to ground the agent.</p>
+        <h3>Drop CSV, TSV, or Excel files here</h3>
+        <p>Select one or several at once — each becomes its own dataset. Files are profiled on the server; summarized statistics, never your raw file, are what ground the agent.</p>
         <div class="upload-row">
           <button class="btn btn-primary" id="browseBtn">Choose file</button>
           <button class="btn btn-ghost" id="sampleBtn">Load sample dataset</button>
         </div>
-        <input type="file" id="fileInput" accept=".csv,.tsv,text/csv" />
+        <input type="file" id="fileInput" accept=".csv,.tsv,.xlsx,.xls" multiple />
       </div>
 
       <div id="uploadSummary" style="display:none;">
